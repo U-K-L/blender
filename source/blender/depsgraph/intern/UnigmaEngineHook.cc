@@ -5,7 +5,7 @@ namespace blender::deg {
 
     void HookIntoScene(Depsgraph* graph)
     {
-
+        PrintObjectDataFromScene(graph);
     }
 
     void PrintObjectDataFromScene(Depsgraph* graph)

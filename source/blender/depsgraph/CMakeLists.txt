@@ -91,6 +91,7 @@ set(SRC
   intern/depsgraph_type.cc
   intern/depsgraph_update.cc
   intern/depsgraph_writeback_sync.cc
+  intern/UnigmaEngineHook.cc
 
   DEG_depsgraph.hh
   DEG_depsgraph_build.hh
@@ -151,6 +152,7 @@ set(SRC
   intern/depsgraph_tag.hh
   intern/depsgraph_type.hh
   intern/depsgraph_update.hh
+  intern/UnigmaEngineHook.h
 )
 
 set(LIB

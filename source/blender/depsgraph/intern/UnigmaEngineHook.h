@@ -1,4 +1,5 @@
 #pragma once
+
 // Include necessary Blender headers
 #include "intern/depsgraph.hh"
 #include "intern/depsgraph_relation.hh"

@@ -45,7 +45,7 @@
 #include "intern/node/deg_node_operation.hh"
 #include "intern/node/deg_node_time.hh"
 
-#include "../depsgraph/UnigmaEngineHook.h"
+#include "intern/UnigmaEngineHook.h"
 namespace blender::deg {
 
 namespace {
@@ -457,6 +457,7 @@ void deg_evaluate_on_refresh(Depsgraph *graph)
   if (state.do_stats) {
     deg_eval_stats_aggregate(graph);
   }
+
   //Unigma!
   HookIntoScene(graph);
 
