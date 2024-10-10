@@ -35,11 +35,27 @@
 #include <stdio.h>
 #include "BKE_object.hh"
 
+#include <cstdio>
+#include <windows.h>
+#include <iostream>
+
+
+struct GameObject {
+  char name[66];
+  char _pad[14];
+  blender::float4x4 transformMatrix;
+  int id;
+  char _pad2[12];
+};
+
+
 namespace blender::deg {
     extern "C" {
 
         void PrintObjectDataFromScene(Depsgraph* graph);
         void HookIntoScene(Depsgraph* graph);
+        int ShareData(Depsgraph *graph);
+        int AssignData(Depsgraph *graph);
 
     } // extern "C"
 }
