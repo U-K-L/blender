@@ -1,4 +1,6 @@
 #include "UnigmaEngineHook.h"
+#include "BKE_mesh.h"        // Include this for mesh-related functions
+#include "DNA_mesh_types.h"  // Include this for Mesh definitions
 
 #define SHARED_MEMORY_NAME "Local\\MySharedMemory"
 #define NUM_OBJECTS 10
@@ -79,7 +81,7 @@ int ShareData(Depsgraph *graph)
         return 1;
       }
 
-      // Assume Depsgraph* graph is properly set up and accessible here
+
       int index = 0;
       for (IDNode *id_node : graph->id_nodes) {
         if (index >= NUM_OBJECTS) {
@@ -93,10 +95,62 @@ int ShareData(Depsgraph *graph)
         if (id_orig->name[0] == 'O' && id_orig->name[1] == 'B') {
           Object *ob_orig = reinterpret_cast<Object *>(id_orig);
 
+          if ((ob_orig->mode & OB_MODE_EDIT))
+            return 1;
           // Access the evaluated (Copy-On-Write) object to get the updated transforms
           ID *id_cow = id_node->id_cow;
+
+
+
           if (id_cow != nullptr) {
             Object *ob_eval = reinterpret_cast<Object *>(id_cow);
+
+            // Get Mesh data.
+            if (ob_orig->type == OB_MESH) {
+              Object *ob_eval = reinterpret_cast<Object *>(id_cow);
+              Mesh *mesh = BKE_object_get_evaluated_mesh(ob_eval);
+
+                if (mesh != nullptr) {
+                // Copy object name
+                strncpy(gameObjects[index].name,
+                        ob_eval->id.name + 2,
+                        sizeof(gameObjects[index].name) - 1);
+
+                // Access vertex positions
+                blender::Span<blender::float3> meshVerts = mesh->vert_positions();
+
+                // Copy vertices and print them
+                gameObjects[index].vertexCount = mesh->verts_num;
+                for (int i = 0; i < mesh->verts_num; ++i) {
+                  blender::float3 vertex = meshVerts[i];
+                  gameObjects[index].vertices[i] = vertex;
+
+                  // Print vertex position
+                  std::cout << "Vertex " << i << ": " << vertex.x << ", " << vertex.y << ", "
+                            << vertex.z << std::endl;
+                }
+
+                // Access edges
+                blender::Span<blender::int2> meshEdges = mesh->edges();
+
+                // Copy indices and print them
+                int face_index = 0;
+                for (int i = 0; i < meshEdges.size(); ++i) {
+                  blender::int2 edge = meshEdges[i];
+                  int vertex_index_0 = edge[0];  // or edge.x
+                  int vertex_index_1 = edge[1];  // or edge.y
+
+                  // Store the edge's vertex indices
+                  gameObjects[index].indices[face_index++] = vertex_index_0;
+                  gameObjects[index].indices[face_index++] = vertex_index_1;
+
+                  // Print edge indices
+                  std::cout << "Edge " << i << ": " << vertex_index_0 << " - " << vertex_index_1
+                            << std::endl;
+                }
+              }
+
+            }
 
             // Prepare GameObject data
             gameObjects[index].id = 0;

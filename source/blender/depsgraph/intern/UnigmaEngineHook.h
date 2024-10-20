@@ -38,14 +38,20 @@
 #include <cstdio>
 #include <windows.h>
 #include <iostream>
+#include <stdint.h>
 
+#define MAX_VERTICES 10000
+#define MAX_INDICES 10000
 
 struct GameObject {
   char name[66];
   char _pad[14];
   blender::float4x4 transformMatrix;
   int id;
-  char _pad2[12];
+  int vertexCount;
+  int indexCount;
+  blender::float3 vertices[MAX_VERTICES];
+  uint32_t indices[MAX_INDICES];
 };
 
 
