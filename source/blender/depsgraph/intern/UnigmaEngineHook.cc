@@ -2,9 +2,11 @@
 #include "BKE_mesh.h"        // Include this for mesh-related functions
 #include "DNA_mesh_types.h"  // Include this for Mesh definitions
 
+#define DATA_READY_EVENT_NAME "Local\\DataReadyEvent"
+#define READ_COMPLETE_EVENT_NAME "Local\\ReadCompleteEvent"
 #define SHARED_MEMORY_NAME "Local\\MySharedMemory"
 #define NUM_OBJECTS 10
-std::map<std::string, GameObject> gameObjectMap;
+std::map<std::string, RenderObject> gameObjectMap;
 namespace blender::deg {
 
     void HookIntoScene(Depsgraph* graph)
@@ -44,13 +46,38 @@ namespace blender::deg {
       return 0;
     }
 
+// Return types:
+// 0: Success
+// -1: Error (general)
+// 1: No File
+// 2: Data not ready.
+// 3: Edit mode.
 int ShareData(Depsgraph *graph)
-    {
-      // Calculate the size of the shared memory
-      const size_t sharedMemorySize = sizeof(GameObject) * NUM_OBJECTS;
+{
+      // Create events for synchronization
+      HANDLE hDataReadyEvent = CreateEventA(
+        NULL, // Default security attributes
+        FALSE, // Auto-reset event
+        FALSE, // Initial state is non-signaled
+        DATA_READY_EVENT_NAME // Name of the event
+      );
+      // Create the event with manual reset and initial state signaled
+      HANDLE hReadCompleteEvent = CreateEventA(
+        NULL, // Default security attributes
+        TRUE, // Manual-reset event
+        TRUE, // Initial state is signaled
+        READ_COMPLETE_EVENT_NAME  // Name of the event
+      );
 
-      std::cout << "Size of struct: " << sizeof(GameObject) << std::endl;
-      std::cout << "Size of float4: " << sizeof(blender::float4x4) << std::endl;
+    if (hDataReadyEvent == NULL || hReadCompleteEvent == NULL) {
+        std::cerr << "Could not create events: " << GetLastError() << std::endl;
+        return 1;
+      }
+
+      // Calculate the size of the shared memory
+      const size_t sharedMemorySize = sizeof(RenderObject) * NUM_OBJECTS;
+
+      std::cout << "Size of struct: " << sizeof(RenderObject) << std::endl;
       // Create a file mapping object for the shared memory
       HANDLE hMapFile = CreateFileMappingA(
           INVALID_HANDLE_VALUE,  // Use paging file
@@ -62,12 +89,14 @@ int ShareData(Depsgraph *graph)
       );
 
       if (hMapFile == NULL) {
-        std::cerr << "Could not create file mapping object: " << GetLastError() << std::endl;
-        return 1;
+          std::cerr << "Could not create file mapping object: " << GetLastError() << std::endl;
+        CloseHandle(hDataReadyEvent);
+        CloseHandle(hReadCompleteEvent);
+          return 1;
       }
 
       // Map a view of the file into the address space of the calling process
-      GameObject *gameObjects = static_cast<GameObject *>(
+      RenderObject *renderObjects = static_cast<RenderObject *>(
           MapViewOfFile(hMapFile,             // Handle to map object
                         FILE_MAP_ALL_ACCESS,  // Read/write permission
                         0,                    // File offset high
@@ -75,12 +104,23 @@ int ShareData(Depsgraph *graph)
                         sharedMemorySize      // Number of bytes to map
                         ));
 
-      if (gameObjects == NULL) {
+      if (renderObjects == NULL) {
         std::cerr << "Could not map view of file: " << GetLastError() << std::endl;
         CloseHandle(hMapFile);
+        CloseHandle(hDataReadyEvent);
+        CloseHandle(hReadCompleteEvent);
         return 1;
       }
 
+      //Begin to read and write
+      DWORD waitResult = WaitForSingleObject(hReadCompleteEvent, 0);  // Zero timeout for non-blocking
+      if (waitResult != WAIT_OBJECT_0) {
+        std::cerr << "File still being read. " << GetLastError() << std::endl;
+        CloseHandle(hMapFile);
+        CloseHandle(hDataReadyEvent);
+        CloseHandle(hReadCompleteEvent);
+        return 2;
+      }
 
       int index = 0;
       for (IDNode *id_node : graph->id_nodes) {
@@ -95,8 +135,12 @@ int ShareData(Depsgraph *graph)
         if (id_orig->name[0] == 'O' && id_orig->name[1] == 'B') {
           Object *ob_orig = reinterpret_cast<Object *>(id_orig);
 
-          if ((ob_orig->mode & OB_MODE_EDIT))
-            return 1;
+          if ((ob_orig->mode & OB_MODE_EDIT)) {
+            CloseHandle(hMapFile);
+            CloseHandle(hDataReadyEvent);
+            CloseHandle(hReadCompleteEvent);
+            return 3;
+          }
           // Access the evaluated (Copy-On-Write) object to get the updated transforms
           ID *id_cow = id_node->id_cow;
 
@@ -105,6 +149,16 @@ int ShareData(Depsgraph *graph)
           if (id_cow != nullptr) {
             Object *ob_eval = reinterpret_cast<Object *>(id_cow);
 
+            // Prepare GameObject data
+            // Store the name.
+            renderObjects[index].id = 0;
+            for (int i = 0; i < 66; i++) {
+              renderObjects[index].name[i] = ob_eval->id.name[i];
+            }
+
+            // Transform matrix.
+            renderObjects[index].transformMatrix = ob_eval->object_to_world();
+
             // Get Mesh data.
             if (ob_orig->type == OB_MESH) {
               Object *ob_eval = reinterpret_cast<Object *>(id_cow);
@@ -112,22 +166,24 @@ int ShareData(Depsgraph *graph)
 
                 if (mesh != nullptr) {
                 // Copy object name
-                strncpy(gameObjects[index].name,
+                strncpy(renderObjects[index].name,
                         ob_eval->id.name + 2,
-                        sizeof(gameObjects[index].name) - 1);
+                        sizeof(renderObjects[index].name) - 1);
 
                 // Access vertex positions
                 blender::Span<blender::float3> meshVerts = mesh->vert_positions();
 
                 // Copy vertices and print them
-                gameObjects[index].vertexCount = mesh->verts_num;
+                renderObjects[index].vertexCount = mesh->verts_num;
                 for (int i = 0; i < mesh->verts_num; ++i) {
                   blender::float3 vertex = meshVerts[i];
-                  gameObjects[index].vertices[i] = vertex;
+                  renderObjects[index].vertices[i] = vertex;
 
+                  /*
                   // Print vertex position
                   std::cout << "Vertex " << i << ": " << vertex.x << ", " << vertex.y << ", "
                             << vertex.z << std::endl;
+                            */
                 }
 
                 // Access edges
@@ -141,27 +197,26 @@ int ShareData(Depsgraph *graph)
                   int vertex_index_1 = edge[1];  // or edge.y
 
                   // Store the edge's vertex indices
-                  gameObjects[index].indices[face_index++] = vertex_index_0;
-                  gameObjects[index].indices[face_index++] = vertex_index_1;
+                  renderObjects[index].indices[face_index++] = vertex_index_0;
+                  renderObjects[index].indices[face_index++] = vertex_index_1;
 
+                  /*
                   // Print edge indices
                   std::cout << "Edge " << i << ": " << vertex_index_0 << " - " << vertex_index_1
                             << std::endl;
+                            */
                 }
               }
 
             }
 
-            // Prepare GameObject data
-            gameObjects[index].id = 0;
-            for (int i = 0; i < 66; i++) {
-              gameObjects[index].name[i] = ob_eval->id.name[i];
-            }
-            gameObjects[index].transformMatrix = ob_eval->object_to_world();
-            // Optional: Print to verify
+            /*
+            //Print to verify
             std::cout << "Name: " << ob_eval->id.name << std::endl;
             std::cout << "Object Name: " << gameObjects[index].name+2 << std::endl;
             std::cout << "Wrote Object[" << index << "] id: " << gameObjects[index].id << std::endl;
+
+            //Print matrix
             for (int row = 0; row < 4; ++row) {
               std::cout << "[ ";
               for (int col = 0; col < 4; ++col) {
@@ -169,15 +224,21 @@ int ShareData(Depsgraph *graph)
               }
               std::cout << "]\n";
             }
-
+            */
             index++;
           }
         }
       }
 
+      SetEvent(hDataReadyEvent);
+      ResetEvent(hReadCompleteEvent);
+
       // Clean up
-      UnmapViewOfFile(gameObjects);
-      CloseHandle(hMapFile);
+      //UnmapViewOfFile(renderObjects);
+      //CloseHandle(hMapFile);
+      //CloseHandle(hDataReadyEvent);
+      //CloseHandle(hReadCompleteEvent);
+
 
       return 0;
     }
