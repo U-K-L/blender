@@ -173,39 +173,79 @@ int ShareData(Depsgraph *graph)
                 // Access vertex positions
                 blender::Span<blender::float3> meshVerts = mesh->vert_positions();
 
-                // Copy vertices and print them
-                renderObjects[index].vertexCount = mesh->verts_num;
+                // Create a mapping from Blender's vertex indices to our vertex array indices
+                std::unordered_map<int, int> vertexIndexMap;
+
+                // Copy vertices and create mapping
+                int vertexArrayIndex = 0;
                 for (int i = 0; i < mesh->verts_num; ++i) {
                   blender::float3 vertex = meshVerts[i];
-                  renderObjects[index].vertices[i] = vertex;
+                  renderObjects[index].vertices[vertexArrayIndex] = vertex;
 
-                  /*
-                  // Print vertex position
-                  std::cout << "Vertex " << i << ": " << vertex.x << ", " << vertex.y << ", "
-                            << vertex.z << std::endl;
-                            */
+                  // Map Blender's vertex index to our vertex array index
+                  vertexIndexMap[i] = vertexArrayIndex;
+
+                  ++vertexArrayIndex;
+                }
+                renderObjects[index].vertexCount = vertexArrayIndex;
+
+
+                // Get the number of faces
+                int total_faces = mesh->faces_num;
+
+                // Access face offsets (start indices for each face in corner_verts)
+                const int *face_offsets = mesh->face_offset_indices;
+
+                // Access corner vertices (vertex indices for each face corner)
+                blender::Span<int> corner_verts = mesh->corner_verts();
+
+
+
+                std::vector<uint32_t> triangle_indices;
+
+                for (int face_index = 0; face_index < total_faces; ++face_index) {
+                  int start = face_offsets[face_index];
+                  int end =
+                      face_offsets[face_index + 1];  // face_offsets has length total_faces + 1
+
+                  int face_vertex_count = end - start;
+
+                  // Collect the vertex indices for this face
+                  std::vector<uint32_t> face_vertex_indices;
+                  for (int i = start; i < end; ++i) {
+                    int vertex_index = corner_verts[i];
+                    face_vertex_indices.push_back(vertex_index);
+                  }
+
+                  // Triangulate the face if necessary
+                  if (face_vertex_count == 3) {
+                    // It's already a triangle
+                    triangle_indices.push_back(face_vertex_indices[0]);
+                    triangle_indices.push_back(face_vertex_indices[1]);
+                    triangle_indices.push_back(face_vertex_indices[2]);
+                  }
+                  else if (face_vertex_count > 3) {
+                    // Fan triangulation for polygons with more than 3 vertices
+                    for (int i = 1; i < face_vertex_count - 1; ++i) {
+                      triangle_indices.push_back(face_vertex_indices[0]);
+                      triangle_indices.push_back(face_vertex_indices[i]);
+                      triangle_indices.push_back(face_vertex_indices[i + 1]);
+                    }
+                  }
+                  // Ignore faces with fewer than 3 vertices
                 }
 
-                // Access edges
-                blender::Span<blender::int2> meshEdges = mesh->edges();
 
-                // Copy indices and print them
-                int face_index = 0;
-                for (int i = 0; i < meshEdges.size(); ++i) {
-                  blender::int2 edge = meshEdges[i];
-                  int vertex_index_0 = edge[0];  // or edge.x
-                  int vertex_index_1 = edge[1];  // or edge.y
-
-                  // Store the edge's vertex indices
-                  renderObjects[index].indices[face_index++] = vertex_index_0;
-                  renderObjects[index].indices[face_index++] = vertex_index_1;
-
-                  /*
-                  // Print edge indices
-                  std::cout << "Edge " << i << ": " << vertex_index_0 << " - " << vertex_index_1
-                            << std::endl;
-                            */
+                // **Optionally, print all triangle indices after processing all faces**
+                std::cout << "\nAll Triangle Indices:\n";
+                for (int i = 0; i < triangle_indices.size(); ++i) {
+                  renderObjects[index].indices[i] = triangle_indices[i];
+                  std::cout << triangle_indices[i] << std::endl;
                 }
+                renderObjects[index].indexCount = triangle_indices.size();
+
+
+
               }
 
             }
