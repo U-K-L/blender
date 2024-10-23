@@ -164,7 +164,7 @@ int ShareData(Depsgraph *graph)
               Object *ob_eval = reinterpret_cast<Object *>(id_cow);
               Mesh *mesh = BKE_object_get_evaluated_mesh(ob_eval);
 
-              if (mesh != nullptr) {
+                if (mesh != nullptr) {
                 // Copy object name
                 strncpy(renderObjects[index].name,
                         ob_eval->id.name + 2,
@@ -208,6 +208,8 @@ int ShareData(Depsgraph *graph)
                 // Access corner vertices (vertex indices for each face corner)
                 blender::Span<int> corner_verts = mesh->corner_verts();
 
+
+
                 std::vector<uint32_t> triangle_indices;
 
                 for (int face_index = 0; face_index < total_faces; ++face_index) {
@@ -245,11 +247,14 @@ int ShareData(Depsgraph *graph)
                 for (int i = 0; i < triangle_indices.size(); ++i) {
                   renderObjects[index].indices[i] = triangle_indices[i];
                 }
-
                 renderObjects[index].indexCount = triangle_indices.size();
+
               }
+
             }
+            index++;
           }
+
         }
       }
 
