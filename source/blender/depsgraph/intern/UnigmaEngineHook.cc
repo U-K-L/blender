@@ -164,7 +164,7 @@ int ShareData(Depsgraph *graph)
               Object *ob_eval = reinterpret_cast<Object *>(id_cow);
               Mesh *mesh = BKE_object_get_evaluated_mesh(ob_eval);
 
-                if (mesh != nullptr) {
+              if (mesh != nullptr) {
                 // Copy object name
                 strncpy(renderObjects[index].name,
                         ob_eval->id.name + 2,
@@ -172,7 +172,8 @@ int ShareData(Depsgraph *graph)
 
                 // Access vertex positions
                 blender::Span<blender::float3> meshVerts = mesh->vert_positions();
-
+                // Access vertex normals
+                blender::Span<blender::float3> meshNormals = mesh->vert_normals();
                 // Create a mapping from Blender's vertex indices to our vertex array indices
                 std::unordered_map<int, int> vertexIndexMap;
 
@@ -181,6 +182,8 @@ int ShareData(Depsgraph *graph)
                 for (int i = 0; i < mesh->verts_num; ++i) {
                   blender::float3 vertex = meshVerts[i];
                   renderObjects[index].vertices[vertexArrayIndex] = vertex;
+                  blender::float3 normal = meshNormals[i];
+                  renderObjects[index].normals[vertexArrayIndex] = normal;
 
                   // Map Blender's vertex index to our vertex array index
                   vertexIndexMap[i] = vertexArrayIndex;
@@ -189,6 +192,12 @@ int ShareData(Depsgraph *graph)
                 }
                 renderObjects[index].vertexCount = vertexArrayIndex;
 
+                std::cout << "Normals:\n";
+                for (int i = 0; i < renderObjects[index].vertexCount; i++) {
+                  std::cout << "  Normal " << i << ": (" << renderObjects[index].normals[i].x
+                            << ", " << renderObjects[index].normals[i].y << ", "
+                            << renderObjects[index].normals[i].z << ")\n";
+                }
 
                 // Get the number of faces
                 int total_faces = mesh->faces_num;
@@ -198,8 +207,6 @@ int ShareData(Depsgraph *graph)
 
                 // Access corner vertices (vertex indices for each face corner)
                 blender::Span<int> corner_verts = mesh->corner_verts();
-
-
 
                 std::vector<uint32_t> triangle_indices;
 
@@ -235,37 +242,13 @@ int ShareData(Depsgraph *graph)
                   // Ignore faces with fewer than 3 vertices
                 }
 
-
-                // **Optionally, print all triangle indices after processing all faces**
-                std::cout << "\nAll Triangle Indices:\n";
                 for (int i = 0; i < triangle_indices.size(); ++i) {
                   renderObjects[index].indices[i] = triangle_indices[i];
-                  std::cout << triangle_indices[i] << std::endl;
                 }
+
                 renderObjects[index].indexCount = triangle_indices.size();
-
-
-
               }
-
             }
-
-            /*
-            //Print to verify
-            std::cout << "Name: " << ob_eval->id.name << std::endl;
-            std::cout << "Object Name: " << gameObjects[index].name+2 << std::endl;
-            std::cout << "Wrote Object[" << index << "] id: " << gameObjects[index].id << std::endl;
-
-            //Print matrix
-            for (int row = 0; row < 4; ++row) {
-              std::cout << "[ ";
-              for (int col = 0; col < 4; ++col) {
-                std::cout << gameObjects[index].transformMatrix[row][col] << " ";
-              }
-              std::cout << "]\n";
-            }
-            */
-            index++;
           }
         }
       }

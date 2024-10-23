@@ -40,8 +40,8 @@
 #include <iostream>
 #include <stdint.h>
 
-#define MAX_VERTICES 34
-#define MAX_INDICES 34
+#define MAX_VERTICES 272
+#define MAX_INDICES 272
 
 struct RenderObject {
   char name[66];
@@ -51,6 +51,7 @@ struct RenderObject {
   int vertexCount;
   int indexCount;
   blender::float3 vertices[MAX_VERTICES];
+  blender::float3 normals[MAX_VERTICES];
   uint32_t indices[MAX_INDICES];
   char _pad2[20];
   
