@@ -81,6 +81,38 @@ struct RenderObject {
 
     return obj;
   }
+
+  // Print function
+  void Print() const
+  {
+    std::cout << "RenderObject Details:\n";
+    std::cout << "Name: " << name << "\n";
+    std::cout << "ID: " << id << "\n";
+    std::cout << "Vertex Count: " << vertexCount << "\n";
+    std::cout << "Index Count: " << indexCount << "\n";
+
+    // Print transform matrix
+    std::cout << "Transform Matrix:\n";
+    for (int i = 0; i < 4; ++i) {
+      for (int j = 0; j < 4; ++j) {
+        std::cout << transformMatrix[i][j] << " ";
+      }
+      std::cout << "\n";
+    }
+
+    // Print a few vertices and indices for brevity
+    std::cout << "Vertices (first 10): ";
+    for (int i = 0; i < 10 && i < vertexCount; ++i) {
+      std::cout << vertices[i] << " ";
+    }
+    std::cout << "\n";
+
+    std::cout << "Indices (first 10): ";
+    for (int i = 0; i < 10 && i < indexCount; ++i) {
+      std::cout << indices[i] << " ";
+    }
+    std::cout << "\n";
+  }
 };
 
 namespace blender::deg {

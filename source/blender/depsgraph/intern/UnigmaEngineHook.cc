@@ -71,7 +71,7 @@ int ShareData(Depsgraph *graph)
 
     if (hDataReadyEvent == NULL || hReadCompleteEvent == NULL) {
         std::cerr << "Could not create events: " << GetLastError() << std::endl;
-        return 1;
+        //return 1;
       }
 
       // Calculate the size of the shared memory
@@ -192,12 +192,6 @@ int ShareData(Depsgraph *graph)
                 }
                 renderObjects[index].vertexCount = vertexArrayIndex;
 
-                std::cout << "Normals:\n";
-                for (int i = 0; i < renderObjects[index].vertexCount; i++) {
-                  std::cout << "  Normal " << i << ": (" << renderObjects[index].normals[i].x
-                            << ", " << renderObjects[index].normals[i].y << ", "
-                            << renderObjects[index].normals[i].z << ")\n";
-                }
 
                 // Get the number of faces
                 int total_faces = mesh->faces_num;
@@ -248,10 +242,11 @@ int ShareData(Depsgraph *graph)
                   renderObjects[index].indices[i] = triangle_indices[i];
                 }
                 renderObjects[index].indexCount = triangle_indices.size();
-
               }
 
             }
+
+            renderObjects[index].Print();
             index++;
           }
 
